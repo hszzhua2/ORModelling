@@ -3,936 +3,870 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BIM 自动化逻辑演示</title>
+    <title>BIM 自动化逻辑演示 (High Precision)</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.140.1/build/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.140.1/examples/js/controls/OrbitControls.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    
     <script>
         tailwind.config = {
             theme: {
                 extend: {
                     colors: {
-                        primary: '#38b2ac',
-                        secondary: '#4299e1',
-                        accent: '#ecc94b',
-                        warning: '#ed8936',
-                        danger: '#f56565',
-                        dark: '#1a202c',
-                        'gray-dark': '#2d3748',
-                        'gray-medium': '#4a5568',
-                        'gray-light': '#a0aec0'
+                        dark: '#0f172a', // 更深的背景
                     }
                 }
             }
         }
     </script>
+    
+    <!-- 引入 Import Map 以解决模块依赖问题 -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.150.1/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.150.1/examples/jsm/"
+            }
+        }
+    </script>
+
     <style type="text/tailwindcss">
         @layer utilities {
-            .backdrop-blur-sm {
-                backdrop-filter: blur(4px);
-            }
-            .pointer-events-none {
-                pointer-events: none;
-            }
-            .pointer-events-auto {
-                pointer-events: auto;
-            }
-            .tracking-wider {
-                letter-spacing: 0.05em;
-            }
-            .tracking-widest {
-                letter-spacing: 0.1em;
-            }
-            .uppercase {
-                text-transform: uppercase;
-            }
-            .whitespace-nowrap {
-                white-space: nowrap;
-            }
-            .font-sans {
-                font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
-            }
+            .backdrop-blur-md { backdrop-filter: blur(12px); }
+            .font-sans { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
         }
     </style>
     <style>
         body {
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
-            /* 禁止选取文本，提升拖拽体验 */
-            user-select: none; 
+            margin: 0; 
+            padding: 0; 
+            overflow: hidden; 
+            user-select: none;
+            background-color: #0f172a;
         }
         .html-label {
             position: absolute;
-            background: rgba(0, 0, 0, 0.7);
-            color: white;
-            padding: 4px 8px;
-            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.9);
+            padding: 6px 12px;
+            border-radius: 8px;
             font-size: 12px;
             border: 1px solid rgba(255, 255, 255, 0.2);
-            backdrop-filter: blur(4px);
+            backdrop-filter: blur(8px);
             pointer-events: none;
             text-align: center;
             white-space: nowrap;
-            top: 0;
-            left: 0;
-            z-index: 5;
-            display: none; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            top: 0; left: 0;
+            display: none;
+            z-index: 10;
+            transition: opacity 0.2s;
         }
-        .html-label .label-title {
-            font-weight: bold;
+        .mode-btn {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .html-label .label-area {
-            font-size: 10px;
-            opacity: 0.8;
+        .mode-btn.active {
+            transform: scale(1.05);
+            box-shadow: 0 0 15px rgba(56, 178, 172, 0.5);
+            border-color: rgba(56, 178, 172, 0.8);
+            background: rgba(56, 178, 172, 0.2);
+            color: #fff;
         }
-        /* 添加操作提示样式 */
-        .controls-hint {
-            position: absolute;
-            top: 1rem;
-            right: 1rem;
-            background: rgba(0, 0, 0, 0.5);
-            padding: 0.5rem;
-            border-radius: 0.5rem;
-            color: #a0aec0;
-            font-size: 0.75rem;
-            pointer-events: none;
-            z-index: 20;
-            border: 1px solid rgba(255,255,255,0.1);
+        /* 简单的加载动画 */
+        .loading {
+            position: fixed; top:0; left:0; width:100%; height:100%;
+            background: #0f172a; z-index: 100;
+            display: flex; justify-content: center; align-items: center;
+            color: white; font-size: 1.5rem;
+            transition: opacity 0.5s;
         }
     </style>
 </head>
-<body class="w-full h-screen bg-gray-900 flex flex-col relative overflow-hidden font-sans">
-    <!-- 顶部标题栏 -->
-    <div class="absolute top-0 left-0 w-full p-4 z-10 flex justify-between items-start pointer-events-none">
-        <div>
-            <h1 class="text-2xl text-white font-bold tracking-wider">BIM 自动化逻辑演示</h1>
-            <p class="text-gray-400 text-sm mt-1">
-                <span class="text-blue-400 font-bold">墙体(输入)</span> vs <span class="text-green-400 font-bold">房间(计算结果)</span>
-            </p>
+<body class="w-full h-screen text-gray-200 font-sans">
+    <div id="loading" class="loading">正在初始化高精度网格...</div>
+
+    <!-- UI 层 -->
+    <div class="absolute inset-0 pointer-events-none z-10 flex flex-col justify-between p-6">
+        
+        <!-- 顶部信息 -->
+        <div class="flex justify-between items-start">
+            <div>
+                <h1 class="text-3xl font-light tracking-tight text-white mb-1">
+                    <span class="font-bold text-teal-400">Liquid</span>BIM 
+                    <span class="text-xs align-top opacity-50 ml-1">v2.0</span>
+                </h1>
+                <p class="text-gray-400 text-sm max-w-md">
+                    高精度自动化空间规划系统 <br/>
+                    <span class="text-xs opacity-60">Grid Resolution: 0.2m | Voxel Engine Active</span>
+                </p>
+            </div>
+            
+            <!-- 规则图例 -->
+            <div class="bg-slate-800/50 p-4 rounded-xl backdrop-blur-md border border-white/10 shadow-2xl pointer-events-auto">
+                <h3 class="text-xs font-bold uppercase tracking-widest text-gray-500 mb-3">Zone Logic</h3>
+                <div class="space-y-2 text-xs">
+                    <div class="flex items-center gap-3">
+                        <div class="w-2 h-2 rounded-full shadow-[0_0_8px_rgba(45,212,191,0.8)] bg-teal-400"></div>
+                        <span class="text-gray-300">手术室 (Area > 35m²)</span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <div class="w-2 h-2 rounded-full shadow-[0_0_8px_rgba(96,165,250,0.8)] bg-blue-400"></div>
+                        <span class="text-gray-300">辅助用房 (Area < 15m²)</span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <div class="w-2 h-2 rounded-full shadow-[0_0_8px_rgba(250,204,21,0.8)] bg-yellow-400"></div>
+                        <span class="text-gray-300">交通空间 (Ratio > 3:1)</span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <div class="w-2 h-2 rounded-full shadow-[0_0_8px_rgba(251,146,60,0.8)] bg-orange-400"></div>
+                        <span class="text-gray-300">通用存储 (Default)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 底部工具栏 -->
+        <div class="flex flex-col items-center gap-4 pointer-events-auto">
+            <!-- 模式切换器 -->
+            <div class="flex items-center gap-2 bg-slate-900/80 p-1.5 rounded-2xl border border-white/10 backdrop-blur-xl shadow-2xl">
+                <button onclick="app.setMode('SELECT')" id="btn-select" class="mode-btn px-6 py-3 rounded-xl flex items-center gap-2 text-sm font-medium text-gray-400 hover:text-white border border-transparent">
+                    <i class="fa fa-mouse-pointer"></i> 
+                    <span>选择 (1)</span>
+                </button>
+                <button onclick="app.setMode('DRAW')" id="btn-draw" class="mode-btn px-6 py-3 rounded-xl flex items-center gap-2 text-sm font-medium text-gray-400 hover:text-white border border-transparent">
+                    <i class="fa fa-pencil"></i>
+                    <span>绘制 (2)</span>
+                </button>
+                <button onclick="app.setMode('DELETE')" id="btn-delete" class="mode-btn px-6 py-3 rounded-xl flex items-center gap-2 text-sm font-medium text-gray-400 hover:text-white border border-transparent">
+                    <i class="fa fa-eraser"></i>
+                    <span>删除 (3)</span>
+                </button>
+            </div>
+            
+            <button onclick="app.clearAll()" class="text-xs text-red-400/70 hover:text-red-400 transition-colors py-2">
+                <i class="fa fa-trash-o mr-1"></i> 清空所有数据
+            </button>
         </div>
         
-        <div class="bg-gray-800/80 p-4 rounded-lg backdrop-blur border border-gray-700 pointer-events-auto shadow-xl">
-            <h3 class="text-white text-sm font-bold mb-2 border-b border-gray-600 pb-2">自动化规则引擎</h3>
-            <div class="space-y-2 text-xs">
-                <div class="flex items-center gap-2">
-                    <div class="w-3 h-3 bg-[#38b2ac]"></div>
-                    <span class="text-gray-300">手术室 (大面积 + 方正)</span>
-                </div>
-                <div class="flex items-center gap-2">
-                    <div class="w-3 h-3 bg-[#4299e1]"></div>
-                    <span class="text-gray-300">刷手/准备间 (小面积)</span>
-                </div>
-                <div class="flex items-center gap-2">
-                    <div class="w-3 h-3 bg-[#ecc94b]"></div>
-                    <span class="text-gray-300">走廊 (长宽比 &gt; 3:1)</span>
-                </div>
-                <div class="flex items-center gap-2">
-                    <div class="w-3 h-3 bg-[#ed8936]"></div>
-                    <span class="text-gray-300">库房/辅房 (其他)</span>
-                </div>
+        <!-- 操作提示 -->
+        <div class="absolute bottom-6 right-6 text-right pointer-events-none opacity-50">
+            <div class="text-xs space-y-1">
+                <p>🖱️ 左键: 执行模式操作</p>
+                <p>🖱️ 右键: 旋转视角</p>
+                <p>🖱️ 中键: 平移画布</p>
             </div>
         </div>
     </div>
 
-    <!-- 操作提示 -->
-    <div class="controls-hint">
-        <div>🖱️ 左键：绘制/删除</div>
-        <div>🖱️ 右键：旋转视角</div>
-        <div>🖱️ 中键：平移视角</div>
-    </div>
+    <div id="scene-container" class="w-full h-full"></div>
 
-    <!-- 底部控制栏 -->
-    <div class="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-10 flex gap-4 pointer-events-auto">
-        <div class="bg-gray-800 rounded-full px-6 py-2 flex items-center gap-4 shadow-lg border border-gray-700">
-            <span class="text-gray-400 text-xs uppercase tracking-widest mr-2">Drawing Tool</span>
-            <button 
-                id="drawModeBtn"
-                class="px-4 py-1.5 rounded-full text-sm font-medium bg-blue-600 text-white transition-colors hover:bg-blue-500"
-            >
-                绘制墙体 (Draw)
-            </button>
-            <div class="w-px h-6 bg-gray-600"></div>
-            <button 
-                id="clearBtn"
-                class="px-4 py-1.5 rounded-full text-sm font-medium text-red-400 hover:bg-red-900/30 transition-colors"
-            >
-                清空图纸
-            </button>
-        </div>
-    </div>
-    
-    <!-- 提示条 -->
-    <div class="absolute bottom-24 w-full text-center z-0 pointer-events-none">
-        <p class="text-white/50 text-sm bg-black/30 inline-block px-4 py-1 rounded-full backdrop-blur-sm">
-            💡 尝试把一个大的手术室用墙切开，观察功能标签的自动变化
-        </p>
-    </div>
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-    <!-- 3D场景容器 -->
-    <div id="scene-container" class="w-full h-full block"></div>
+        // --- 全局常量 (High Precision) ---
+        const GRID_SIZE = 150;      // 30米范围 (150 * 0.2)
+        const CELL_SIZE = 0.2;      // 0.2米精度
+        const WALL_HEIGHT = 2.8;    // 2.8米层高
+        const WALL_THICKNESS = 0.2; // 200mm墙厚
+        const ROOM_HEIGHT = 2.2;    // 房间体块高度 (略低于墙)
 
-    <script>
-        // --- 类型定义 ---
-        // Point: [x, z] Grid coordinates
-        // RoomType: 'OR' | 'SCRUB' | 'CORRIDOR' | 'STORAGE' | 'UNKNOWN' | 'OPEN'
-
-        // --- 常量配置 ---
-        const GRID_SIZE = 20; // 20x20 网格
-        const CELL_SIZE = 1.5; // 每个单元格的世界单位大小
-        const WALL_HEIGHT = 2.5;
-        const WALL_THICKNESS = 0.2;
-
-        // 颜色定义
-        const COLORS = {
-            WALL: '#4a5568',
-            WALL_PREVIEW: '#a0aec0',
-            GRID: '#e2e8f0',
-            OR: '#38b2ac',      // 手术室 - 青色
-            SCRUB: '#4299e1',   // 洗手间 - 蓝色
-            CORRIDOR: '#ecc94b',// 走廊 - 黄色
-            STORAGE: '#ed8936', // 库房 - 橙色
-            UNKNOWN: '#cbd5e0', // 未知 - 灰色
-            HIGHLIGHT: '#f56565'
+        // 颜色配置 (Glass Style)
+        const PALETTE = {
+            WALL: 0xffffff, // 白磨砂
+            OR: 0x2dd4bf,   // Teal
+            SCRUB: 0x60a5fa, // Blue
+            CORRIDOR: 0xfacc15, // Yellow
+            STORAGE: 0xfb923c, // Orange
+            UNKNOWN: 0x94a3b8, // Slate
+            HIGHLIGHT: 0xf43f5e // Rose
         };
 
-        // --- 核心算法：房间识别与逻辑推理 ---
-        const analyzeRooms = (walls) => {
-            // 1. 初始化网格地图 (0 = 空, 1 = 墙)
-            const gridMap = Array(GRID_SIZE).fill(0).map(() => Array(GRID_SIZE).fill(0));
-
-            // 2. 将墙体栅格化到地图上
-            walls.forEach(wall => {
-                const [x1, z1] = wall.start;
-                const [x2, z2] = wall.end;
-                
-                // 简单的直线栅格化
-                const dx = Math.abs(x2 - x1);
-                const dz = Math.abs(z2 - z1);
-                const sx = (x1 < x2) ? 1 : -1;
-                const sz = (z1 < z2) ? 1 : -1;
-                let err = dx - dz;
-                let cx = x1;
-                let cz = z1;
-
-                while (true) {
-                    if (cx >= 0 && cx < GRID_SIZE && cz >= 0 && cz < GRID_SIZE) {
-                        gridMap[cx][cz] = 1; // 标记为墙
-                    }
-                    if (cx === x2 && cz === z2) break;
-                    const e2 = 2 * err;
-                    if (e2 > -dz) { err -= dz; cx += sx; }
-                    if (e2 < dx) { err += dx; cz += sz; }
-                }
-            });
-
-            // 3. 泛洪算法 (Flood Fill) 寻找连通区域
-            const visited = Array(GRID_SIZE).fill(0).map(() => Array(GRID_SIZE).fill(false));
-            const rooms = [];
-            let roomIdCounter = 0;
-
-            for (let x = 0; x < GRID_SIZE; x++) {
-                for (let z = 0; z < GRID_SIZE; z++) {
-                    if (gridMap[x][z] === 0 && !visited[x][z]) {
-                        // 发现新区域，开始扩散
-                        const currentRoomCells = [];
-                        const queue = [[x, z]];
-                        visited[x][z] = true;
-                        let isClosed = true; // 假设是闭合的
-
-                        while (queue.length > 0) {
-                            const [cx, cz] = queue.shift();
-                            currentRoomCells.push([cx, cz]);
-
-                            // 检查是否触碰到边界（触碰边界意味着不是封闭房间）
-                            if (cx === 0 || cx === GRID_SIZE - 1 || cz === 0 || cz === GRID_SIZE - 1) {
-                                isClosed = false;
-                            }
-
-                            // 检查四个方向
-                            const neighbors = [
-                                [cx + 1, cz], [cx - 1, cz], [cx, cz + 1], [cx, cz - 1]
-                            ];
-
-                            for (const [nx, nz] of neighbors) {
-                                if (nx >= 0 && nx < GRID_SIZE && nz >= 0 && nz < GRID_SIZE) {
-                                    if (gridMap[nx][nz] === 0 && !visited[nx][nz]) {
-                                        visited[nx][nz] = true;
-                                        queue.push([nx, nz]);
-                                    }
-                                }
-                            }
-                        }
-
-                        // 4. 只有完全闭合的区域才算作"房间"
-                        if (isClosed && currentRoomCells.length > 0) {
-                            rooms.push(classifyRoom(currentRoomCells, roomIdCounter++));
-                        }
-                    }
-                }
-            }
-            return rooms;
-        };
-
-        // --- 规则引擎：根据几何属性定义功能 ---
-        const classifyRoom = (cells, id) => {
-            const area = cells.length; // 面积近似值
-            
-            // 计算包围盒以确定长宽比
-            let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-            let sumX = 0, sumZ = 0;
-            
-            cells.forEach(([x, z]) => {
-                minX = Math.min(minX, x);
-                maxX = Math.max(maxX, x);
-                minZ = Math.min(minZ, z);
-                maxZ = Math.max(maxZ, z);
-                sumX += x;
-                sumZ += z;
-            });
-
-            const width = maxX - minX + 1;
-            const depth = maxZ - minZ + 1;
-            const aspectRatio = Math.max(width, depth) / Math.min(width, depth);
-            
-            // 世界坐标中心
-            const centerX = (sumX / area) * CELL_SIZE - (GRID_SIZE * CELL_SIZE) / 2 + CELL_SIZE/2;
-            const centerZ = (sumZ / area) * CELL_SIZE - (GRID_SIZE * CELL_SIZE) / 2 + CELL_SIZE/2;
-
-            // --- 自动化规则判定逻辑 ---
-            let type = 'UNKNOWN';
-            let label = '未定义';
-            let color = COLORS.UNKNOWN;
-
-            // 规则 1: 手术室 (面积大且接近正方形)
-            if (area >= 16 && aspectRatio < 2.0) {
-                type = 'OR';
-                label = `手术室 ${id+1}`;
-                color = COLORS.OR;
-            } 
-            // 规则 2: 走廊 (细长条)
-            else if (aspectRatio > 3.0 || (area > 20 && aspectRatio > 2.5)) {
-                type = 'CORRIDOR';
-                label = '洁净走廊';
-                color = COLORS.CORRIDOR;
-            }
-            // 规则 3: 洗手/麻醉准备 (面积小，通常附属于手术室)
-            else if (area < 9) {
-                type = 'SCRUB';
-                label = '刷手间';
-                color = COLORS.SCRUB;
-            }
-            // 规则 4: 辅房/库房 (中等面积)
-            else {
-                type = 'STORAGE';
-                label = '无菌库房';
-                color = COLORS.STORAGE;
-            }
-
-            return {
-                id,
-                cells,
-                area,
-                center: [centerX, 0.1, centerZ], // 稍微抬高避免Z-fighting
-                type,
-                label,
-                color
-            };
-        };
-
-        // --- 3D场景管理 ---
-        class BIMScene {
-            constructor(container) {
-                this.container = container;
-                this.scene = null;
-                this.camera = null;
-                this.renderer = null;
-                this.controls = null;
-                this.raycaster = null;
-                this.mouse = null;
-                
-                // 场景对象
+        // --- 核心逻辑类 ---
+        class BIMManager {
+            constructor() {
                 this.walls = [];
                 this.rooms = [];
-                this.wallMeshes = [];
-                this.roomMeshes = [];
-                this.labelDivs = [];
-                this.gridHelper = null;
-                this.interactionPlane = null;
-                this.hoverMesh = null;
-                this.previewWall = null;
+                this.container = document.getElementById('scene-container');
+                this.mode = 'DRAW'; // SELECT, DRAW, DELETE
                 
-                // 交互状态
-                this.isDrawing = false;
-                this.startPoint = null;
-                this.currentPoint = null;
-                this.mode = 'DRAW'; // 'DRAW' | 'DELETE'
+                this.initThree();
+                this.initInteraction();
+                this.initPreset();
+
+                // 移除 loading
+                document.getElementById('loading').style.opacity = 0;
+                setTimeout(() => document.getElementById('loading').remove(), 500);
+
+                this.updateUI();
                 
-                this.init();
-                this.setupEventListeners();
-                this.animate();
+                // 暴露给全局以便 HTML 按钮调用
+                window.app = this;
             }
 
-            init() {
-                // 创建场景
+            initThree() {
+                // 场景
                 this.scene = new THREE.Scene();
-                this.scene.background = new THREE.Color('#1a202c');
+                this.scene.background = new THREE.Color('#0f172a');
+                // 添加一些迷雾增加深邃感
+                this.scene.fog = new THREE.FogExp2(0x0f172a, 0.02);
 
-                // 创建相机
-                this.camera = new THREE.PerspectiveCamera(
-                    45,
-                    this.container.clientWidth / this.container.clientHeight,
-                    0.1,
-                    1000
-                );
-                this.camera.position.set(10, 20, 20);
+                // 相机
+                this.camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+                this.camera.position.set(15, 25, 25);
 
-                // 创建渲染器
-                this.renderer = new THREE.WebGLRenderer({ antialias: true });
-                this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
+                // 渲染器 (开启物理光照计算)
+                this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.setPixelRatio(window.devicePixelRatio);
                 this.renderer.shadowMap.enabled = true;
                 this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+                this.renderer.toneMappingExposure = 1.0;
                 this.container.appendChild(this.renderer.domElement);
 
-                // 创建控制器
-                this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
-                this.controls.minPolarAngle = 0;
-                this.controls.maxPolarAngle = Math.PI / 2.5;
-                this.controls.maxDistance = 50;
+                // 控制器
+                this.controls = new OrbitControls(this.camera, this.renderer.domElement);
                 this.controls.enableDamping = true;
                 this.controls.dampingFactor = 0.05;
-                
-                // --- 优化操作逻辑 ---
-                // 左键：禁用相机操作（留给画墙）
-                // 中键：平移 (Pan)
-                // 右键：旋转 (Rotate)
+                this.controls.maxPolarAngle = Math.PI / 2.1; // 不允许看穿地板
+                this.controls.minDistance = 5;
+                this.controls.maxDistance = 60;
+                // 按键映射
                 this.controls.mouseButtons = {
-                    LEFT: null, 
+                    LEFT: null, // 左键留给操作
                     MIDDLE: THREE.MOUSE.PAN,
                     RIGHT: THREE.MOUSE.ROTATE
                 };
 
-                // 创建射线检测器
+                // 灯光系统 (为了 Liquid Glass 效果，灯光至关重要)
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
+                this.scene.add(ambientLight);
+
+                const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+                dirLight.position.set(10, 40, 20);
+                dirLight.castShadow = true;
+                dirLight.shadow.mapSize.width = 2048;
+                dirLight.shadow.mapSize.height = 2048;
+                this.scene.add(dirLight);
+
+                // 补光，增加玻璃通透感
+                const fillLight = new THREE.PointLight(0x88ccff, 0.8);
+                fillLight.position.set(-10, 10, -10);
+                this.scene.add(fillLight);
+
+                // 辅助平面
+                this.createHelpers();
+
+                // 交互射线
                 this.raycaster = new THREE.Raycaster();
                 this.mouse = new THREE.Vector2();
 
-                // 添加灯光
-                const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
-                this.scene.add(ambientLight);
+                // 渲染循环
+                this.animate = this.animate.bind(this);
+                this.animate();
 
-                const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-                directionalLight.position.set(10, 20, 5);
-                directionalLight.castShadow = true;
-                directionalLight.shadow.mapSize.width = 1024;
-                directionalLight.shadow.mapSize.height = 1024;
-                this.scene.add(directionalLight);
-
-                // 创建交互平面
-                this.createInteractionPlane();
-
-                // 创建网格辅助线
-                this.createGridHelper();
-
-                // 创建悬停高亮网格
-                this.createHoverMesh();
-
-                // 初始化预设场景
-                this.initPresetScene();
-
-                // 处理窗口大小变化
-                window.addEventListener('resize', () => this.onWindowResize());
+                // 窗口调整
+                window.addEventListener('resize', () => {
+                    this.camera.aspect = window.innerWidth / window.innerHeight;
+                    this.camera.updateProjectionMatrix();
+                    this.renderer.setSize(window.innerWidth, window.innerHeight);
+                });
             }
 
-            createInteractionPlane() {
-                const geometry = new THREE.PlaneGeometry(GRID_SIZE * CELL_SIZE, GRID_SIZE * CELL_SIZE);
-                const material = new THREE.MeshBasicMaterial({ visible: false });
-                this.interactionPlane = new THREE.Mesh(geometry, material);
+            createHelpers() {
+                // 地面网格 (更细腻)
+                const grid = new THREE.GridHelper(30, 30, 0x334155, 0x1e293b);
+                this.scene.add(grid);
+
+                // 交互平面 (不可见)
+                const planeGeo = new THREE.PlaneGeometry(100, 100);
+                const planeMat = new THREE.MeshBasicMaterial({ visible: false });
+                this.interactionPlane = new THREE.Mesh(planeGeo, planeMat);
                 this.interactionPlane.rotation.x = -Math.PI / 2;
-                this.interactionPlane.position.y = 0.01;
                 this.scene.add(this.interactionPlane);
-            }
 
-            createGridHelper() {
-                this.gridHelper = new THREE.GridHelper(
-                    GRID_SIZE * CELL_SIZE,
-                    GRID_SIZE,
-                    COLORS.GRID,
-                    COLORS.GRID
-                );
-                this.gridHelper.position.y = 0.01;
-                this.scene.add(this.gridHelper);
-            }
-
-            createHoverMesh() {
-                const geometry = new THREE.PlaneGeometry(CELL_SIZE, CELL_SIZE);
-                const material = new THREE.MeshBasicMaterial({
-                    color: COLORS.HIGHLIGHT,
-                    opacity: 0.3,
+                // 悬停光标 (3D Box)
+                const cursorGeo = new THREE.BoxGeometry(CELL_SIZE, CELL_SIZE, CELL_SIZE);
+                const cursorMat = new THREE.MeshBasicMaterial({ 
+                    color: PALETTE.HIGHLIGHT, 
+                    transparent: true, 
+                    opacity: 0.5,
+                    wireframe: true
+                });
+                this.cursor = new THREE.Mesh(cursorGeo, cursorMat);
+                this.scene.add(this.cursor);
+                
+                // 预览墙体
+                const previewGeo = new THREE.BoxGeometry(1, WALL_HEIGHT, WALL_THICKNESS);
+                const previewMat = new THREE.MeshPhysicalMaterial({
+                    color: PALETTE.HIGHLIGHT,
+                    transmission: 0.5,
+                    opacity: 1,
+                    roughness: 0.1,
                     transparent: true
                 });
-                this.hoverMesh = new THREE.Mesh(geometry, material);
-                this.hoverMesh.rotation.x = -Math.PI / 2;
-                this.hoverMesh.visible = false;
-                this.scene.add(this.hoverMesh);
+                this.previewWall = new THREE.Mesh(previewGeo, previewMat);
+                this.previewWall.visible = false;
+                this.scene.add(this.previewWall);
+
+                // 房间 InstancedMesh 容器 (用于高性能渲染大量体素)
+                // 实际上，为了玻璃效果，我们需要合并几何体或者使用 Instance
+                // 为了演示效果和简单起见，我们对每种类型的房间使用一个 InstancedMesh
+                this.roomInstancedMeshes = {};
             }
 
-            initPresetScene() {
-                const initialWalls = [
-                    // 外框
-                    { id: '1', start: [2, 2], end: [2, 12] },
-                    { id: '2', start: [2, 12], end: [15, 12] },
-                    { id: '3', start: [15, 12], end: [15, 2] },
-                    { id: '4', start: [15, 2], end: [2, 2] },
-                    // 内部走廊
-                    { id: '5', start: [6, 2], end: [6, 12] },
-                    // 一个未封闭的缺口...
-                ];
-                this.walls = initialWalls;
-                this.updateScene();
-            }
+            initInteraction() {
+                // 键盘快捷键
+                window.addEventListener('keydown', (e) => {
+                    if (e.key === '1') this.setMode('SELECT');
+                    if (e.key === '2') this.setMode('DRAW');
+                    if (e.key === '3') this.setMode('DELETE');
+                    if (e.key === 'Escape') this.cancelAction();
+                });
 
-            setupEventListeners() {
-                // 禁用默认右键菜单，以便用于旋转视角
-                this.container.addEventListener('contextmenu', (e) => e.preventDefault());
+                const canvas = this.renderer.domElement;
+                
+                // 统一处理坐标转换
+                const updateMouse = (e) => {
+                    const rect = canvas.getBoundingClientRect();
+                    this.mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+                    this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+                };
 
                 // 鼠标事件
-                this.container.addEventListener('mousedown', (e) => this.onMouseDown(e));
-                this.container.addEventListener('mousemove', (e) => this.onMouseMove(e));
-                this.container.addEventListener('mouseup', () => this.onMouseUp());
-
-                // 触摸事件 (触摸操作比较复杂，这里暂时保持基本兼容，但推荐使用鼠标)
-                this.container.addEventListener('touchstart', (e) => this.onTouchStart(e));
-                this.container.addEventListener('touchmove', (e) => this.onTouchMove(e));
-                this.container.addEventListener('touchend', () => this.onTouchEnd());
-
-                // 按钮事件
-                document.getElementById('drawModeBtn').addEventListener('click', () => {
-                    this.mode = this.mode === 'DRAW' ? 'DELETE' : 'DRAW';
-                    this.updateDrawModeButton();
+                canvas.addEventListener('mousemove', (e) => {
+                    updateMouse(e);
+                    this.onHover();
                 });
 
-                document.getElementById('clearBtn').addEventListener('click', () => {
-                    this.clearAll();
+                canvas.addEventListener('mousedown', (e) => {
+                    if(e.button !== 0) return; // 仅左键
+                    updateMouse(e);
+                    this.onMouseDown();
                 });
+
+                canvas.addEventListener('mouseup', () => {
+                    this.onMouseUp();
+                });
+
+                // 禁用右键菜单
+                canvas.addEventListener('contextmenu', e => e.preventDefault());
             }
 
-            updateDrawModeButton() {
-                const btn = document.getElementById('drawModeBtn');
+            setMode(mode) {
+                this.mode = mode;
+                this.cancelAction(); // 切换模式时重置状态
+                this.updateUI();
+            }
+            
+            cancelAction() {
+                this.isDrawing = false;
+                this.startPoint = null;
+                this.previewWall.visible = false;
+                if(this.mode === 'SELECT') this.highlightRoom(null);
+            }
+
+            updateUI() {
+                document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
+                if(this.mode === 'SELECT') document.getElementById('btn-select').classList.add('active');
+                if(this.mode === 'DRAW') document.getElementById('btn-draw').classList.add('active');
+                if(this.mode === 'DELETE') document.getElementById('btn-delete').classList.add('active');
+                
+                document.body.style.cursor = this.mode === 'DRAW' ? 'crosshair' : (this.mode === 'DELETE' ? 'not-allowed' : 'default');
+            }
+
+            // --- 几何与逻辑转换 ---
+
+            getGridPoint() {
+                this.raycaster.setFromCamera(this.mouse, this.camera);
+                const intersects = this.raycaster.intersectObject(this.interactionPlane);
+                if (intersects.length > 0) {
+                    const p = intersects[0].point;
+                    // 转换到网格坐标 (0..GRID_SIZE)
+                    const gx = Math.round((p.x + (GRID_SIZE * CELL_SIZE) / 2) / CELL_SIZE);
+                    const gz = Math.round((p.z + (GRID_SIZE * CELL_SIZE) / 2) / CELL_SIZE);
+                    
+                    if (gx >= 0 && gx < GRID_SIZE && gz >= 0 && gz < GRID_SIZE) {
+                        return { gx, gz, wx: p.x, wz: p.z }; // Grid X, Grid Z, World X, World Z
+                    }
+                }
+                return null;
+            }
+
+            // --- 交互逻辑 ---
+
+            onHover() {
+                const hit = this.getGridPoint();
+                if (!hit) {
+                    this.cursor.visible = false;
+                    return;
+                }
+
+                // 对齐到网格中心
+                const snapX = (hit.gx * CELL_SIZE) - (GRID_SIZE * CELL_SIZE)/2;
+                const snapZ = (hit.gz * CELL_SIZE) - (GRID_SIZE * CELL_SIZE)/2;
+                
+                this.cursor.position.set(snapX, CELL_SIZE/2, snapZ);
+                this.cursor.visible = true;
+
                 if (this.mode === 'DRAW') {
-                    btn.textContent = '绘制墙体 (Draw)';
-                    btn.classList.remove('bg-red-600');
-                    btn.classList.add('bg-blue-600');
-                    btn.classList.remove('hover:bg-red-500');
-                    btn.classList.add('hover:bg-blue-500');
-                } else {
-                    btn.textContent = '删除墙体 (Delete)';
-                    btn.classList.remove('bg-blue-600');
-                    btn.classList.add('bg-red-600');
-                    btn.classList.remove('hover:bg-blue-500');
-                    btn.classList.add('hover:bg-red-500');
+                    this.cursor.material.color.setHex(PALETTE.HIGHLIGHT);
+                    if (this.isDrawing && this.startPoint) {
+                        this.updatePreview(this.startPoint, {gx: hit.gx, gz: hit.gz});
+                    }
+                } else if (this.mode === 'DELETE') {
+                    this.cursor.material.color.setHex(0xff0000);
+                    // 可以在这里做删除高亮预览
+                } else if (this.mode === 'SELECT') {
+                    this.cursor.material.color.setHex(0x38b2ac);
+                    // 查找当前鼠标下的房间
+                    const room = this.findRoomAt(hit.gx, hit.gz);
+                    this.highlightRoom(room);
+                }
+            }
+
+            onMouseDown() {
+                const hit = this.getGridPoint();
+                if (!hit) return;
+
+                if (this.mode === 'DRAW') {
+                    this.isDrawing = true;
+                    this.startPoint = { gx: hit.gx, gz: hit.gz };
+                } else if (this.mode === 'DELETE') {
+                    this.deleteWall(hit);
+                }
+            }
+
+            onMouseUp() {
+                if (this.mode === 'DRAW' && this.isDrawing) {
+                    const hit = this.getGridPoint();
+                    if (hit && this.startPoint) {
+                        // 添加墙体
+                        if (hit.gx !== this.startPoint.gx || hit.gz !== this.startPoint.gz) {
+                            this.addWall(this.startPoint, { gx: hit.gx, gz: hit.gz });
+                        }
+                    }
+                    this.isDrawing = false;
+                    this.startPoint = null;
+                    this.previewWall.visible = false;
+                }
+            }
+
+            updatePreview(start, end) {
+                // 计算中心点、长度、角度
+                const p1 = this.gridToWorld(start.gx, start.gz);
+                const p2 = this.gridToWorld(end.gx, end.gz);
+                
+                const midX = (p1.x + p2.x) / 2;
+                const midZ = (p1.z + p2.z) / 2;
+                const len = Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.z - p1.z, 2)) + WALL_THICKNESS;
+                const angle = Math.atan2(p2.z - p1.z, p2.x - p1.x);
+
+                this.previewWall.position.set(midX, WALL_HEIGHT/2, midZ);
+                this.previewWall.rotation.y = -angle;
+                this.previewWall.scale.x = len;
+                this.previewWall.visible = true;
+            }
+
+            gridToWorld(gx, gz) {
+                return {
+                    x: gx * CELL_SIZE - (GRID_SIZE * CELL_SIZE)/2,
+                    z: gz * CELL_SIZE - (GRID_SIZE * CELL_SIZE)/2
+                };
+            }
+
+            // --- 业务逻辑 ---
+
+            addWall(start, end) {
+                const id = Math.random().toString(36).substr(2, 9);
+                this.walls.push({ id, start: [start.gx, start.gz], end: [end.gx, end.gz] });
+                this.rebuildModel();
+            }
+
+            deleteWall(hit) {
+                // 简单的碰撞检测：点到线段距离
+                // 为了演示简便，我们用 Grid 碰撞
+                const tolerance = 2; // 允许误差范围
+                const initialCount = this.walls.length;
+
+                this.walls = this.walls.filter(w => {
+                    // 检查点是否在线段包围盒附近
+                    const minX = Math.min(w.start[0], w.end[0]) - tolerance;
+                    const maxX = Math.max(w.start[0], w.end[0]) + tolerance;
+                    const minZ = Math.min(w.start[1], w.end[1]) - tolerance;
+                    const maxZ = Math.max(w.start[1], w.end[1]) + tolerance;
+
+                    if (hit.gx >= minX && hit.gx <= maxX && hit.gz >= minZ && hit.gz <= maxZ) {
+                        // 进一步检查点到直线的距离
+                        // 这里简化为：如果在包围盒内就删除，体验比较爽快
+                        return false;
+                    }
+                    return true;
+                });
+
+                if (this.walls.length !== initialCount) {
+                    this.rebuildModel();
                 }
             }
 
             clearAll() {
                 this.walls = [];
-                this.updateScene();
+                this.rebuildModel();
             }
 
-            onWindowResize() {
-                this.camera.aspect = this.container.clientWidth / this.container.clientHeight;
-                this.camera.updateProjectionMatrix();
-                this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
-            }
-
-            getMousePosition(event) {
-                const rect = this.container.getBoundingClientRect();
-                return {
-                    x: ((event.clientX - rect.left) / this.container.clientWidth) * 2 - 1,
-                    y: -((event.clientY - rect.top) / this.container.clientHeight) * 2 + 1
-                };
-            }
-
-            getTouchPosition(event) {
-                const rect = this.container.getBoundingClientRect();
-                const touch = event.touches[0];
-                return {
-                    x: ((touch.clientX - rect.left) / this.container.clientWidth) * 2 - 1,
-                    y: -((touch.clientY - rect.top) / this.container.clientHeight) * 2 + 1
-                };
-            }
-
-            getGridPointFromMouse(event) {
-                const mousePos = this.getMousePosition(event);
-                this.mouse.set(mousePos.x, mousePos.y);
-                
-                this.raycaster.setFromCamera(this.mouse, this.camera);
-                const intersects = this.raycaster.intersectObject(this.interactionPlane);
-                
-                if (intersects.length > 0) {
-                    const point = intersects[0].point;
-                    // 转换回网格坐标
-                    const gx = Math.floor((point.x + (GRID_SIZE * CELL_SIZE) / 2) / CELL_SIZE);
-                    const gz = Math.floor((point.z + (GRID_SIZE * CELL_SIZE) / 2) / CELL_SIZE);
-                    
-                    if (gx >= 0 && gx < GRID_SIZE && gz >= 0 && gz < GRID_SIZE) {
-                        return [gx, gz];
-                    }
+            // --- 核心算法 (High Precision) ---
+            
+            rebuildModel() {
+                // 1. 清理场景墙体
+                if (this.wallMeshes) {
+                    this.wallMeshes.forEach(m => {
+                        this.scene.remove(m);
+                        m.geometry.dispose();
+                    });
                 }
-                return null;
-            }
-
-            getGridPointFromTouch(event) {
-                const touchPos = this.getTouchPosition(event);
-                this.mouse.set(touchPos.x, touchPos.y);
-                
-                this.raycaster.setFromCamera(this.mouse, this.camera);
-                const intersects = this.raycaster.intersectObject(this.interactionPlane);
-                
-                if (intersects.length > 0) {
-                    const point = intersects[0].point;
-                    // 转换回网格坐标
-                    const gx = Math.floor((point.x + (GRID_SIZE * CELL_SIZE) / 2) / CELL_SIZE);
-                    const gz = Math.floor((point.z + (GRID_SIZE * CELL_SIZE) / 2) / CELL_SIZE);
-                    
-                    if (gx >= 0 && gx < GRID_SIZE && gz >= 0 && gz < GRID_SIZE) {
-                        return [gx, gz];
-                    }
-                }
-                return null;
-            }
-
-            onMouseDown(event) {
-                // 只响应左键 (button === 0)
-                if (event.button !== 0) return; 
-                
-                const point = this.getGridPointFromMouse(event);
-                if (!point) return;
-                
-                if (this.mode === 'DELETE') {
-                    this.deleteWallAt(point);
-                } else {
-                    this.startDrawing(point);
-                }
-            }
-
-            onMouseMove(event) {
-                const point = this.getGridPointFromMouse(event);
-                this.updateCurrentPoint(point);
-            }
-
-            onMouseUp() {
-                this.stopDrawing();
-            }
-
-            onTouchStart(event) {
-                // 触摸设备通常单指是左键行为，双指是漫游
-                // 这里不做复杂区分，单指直接画
-                const point = this.getGridPointFromTouch(event);
-                if (!point) return;
-                
-                if (this.mode === 'DELETE') {
-                    this.deleteWallAt(point);
-                } else {
-                    this.startDrawing(point);
-                }
-            }
-
-            onTouchMove(event) {
-                // event.preventDefault(); // 移除 preventDefault 以允许 OrbitControls 接管触摸旋转 (如果是双指)
-                // OrbitControls 默认单指触摸是旋转。这可能和画墙冲突。
-                // 优化：如果是单指且正在绘制，则 preventDefault。
-                
-                if (this.isDrawing) {
-                    event.preventDefault();
-                    const point = this.getGridPointFromTouch(event);
-                    this.updateCurrentPoint(point);
-                }
-            }
-
-            onTouchEnd() {
-                this.stopDrawing();
-            }
-
-            startDrawing(point) {
-                this.isDrawing = true;
-                this.startPoint = point;
-                this.currentPoint = point;
-                // 禁用控制器，避免画墙时拖拽视角
-                this.controls.enabled = false;
-            }
-
-            updateCurrentPoint(point) {
-                if (!point) return;
-                
-                this.currentPoint = point;
-                
-                if (!this.isDrawing) {
-                    // 更新悬停网格位置
-                    this.updateHoverMesh(point);
-                } else {
-                    // 更新预览墙体
-                    this.updatePreviewWall();
-                }
-            }
-
-            stopDrawing() {
-                if (this.isDrawing && this.startPoint && this.currentPoint) {
-                    // 只有长度大于0才添加
-                    if (this.startPoint[0] !== this.currentPoint[0] || this.startPoint[1] !== this.currentPoint[1]) {
-                        const newWall = {
-                            id: Math.random().toString(36).substr(2, 9),
-                            start: [...this.startPoint],
-                            end: [...this.currentPoint]
-                        };
-                        this.walls.push(newWall);
-                        this.updateScene();
-                    }
-                }
-                
-                this.isDrawing = false;
-                this.startPoint = null;
-                this.removePreviewWall();
-                // 重新启用控制器
-                this.controls.enabled = true;
-            }
-
-            deleteWallAt(point) {
-                // 简单的删除逻辑：删除靠近点击点的墙
-                const tolerance = 1;
-                const newWalls = this.walls.filter(wall => {
-                    const [x1, z1] = wall.start;
-                    const [x2, z2] = wall.end;
-                    
-                    // 检查点是否在墙的附近
-                    // 为简化，检查是否与起点或终点重合
-                    if ((x1 === point[0] && z1 === point[1]) || (x2 === point[0] && z2 === point[1])) {
-                        return false;
-                    }
-                    
-                    // 计算墙体覆盖的网格
-                    const minX = Math.min(x1, x2);
-                    const maxX = Math.max(x1, x2);
-                    const minZ = Math.min(z1, z2);
-                    const maxZ = Math.max(z1, z2);
-                    
-                    // 水平墙
-                    if (z1 === z2) {
-                        if (point[1] === z1 && point[0] >= minX && point[0] <= maxX) return false;
-                    }
-                    // 垂直墙
-                    else if (x1 === x2) {
-                        if (point[0] === x1 && point[1] >= minZ && point[1] <= maxZ) return false;
-                    }
-                    
-                    return true;
-                });
-                
-                if (newWalls.length !== this.walls.length) {
-                    this.walls = newWalls;
-                    this.updateScene();
-                }
-            }
-
-            updateHoverMesh(point) {
-                if (!point) {
-                    this.hoverMesh.visible = false;
-                    return;
-                }
-                
-                const wx = point[0] * CELL_SIZE - (GRID_SIZE * CELL_SIZE) / 2 + CELL_SIZE/2;
-                const wz = point[1] * CELL_SIZE - (GRID_SIZE * CELL_SIZE) / 2 + CELL_SIZE/2;
-                
-                this.hoverMesh.position.set(wx, 0.02, wz);
-                this.hoverMesh.visible = true;
-            }
-
-            updatePreviewWall() {
-                if (!this.startPoint || !this.currentPoint) return;
-                
-                if (!this.previewWall) {
-                    this.createPreviewWall();
-                }
-                
-                const x1 = this.startPoint[0] * CELL_SIZE - (GRID_SIZE * CELL_SIZE) / 2 + CELL_SIZE/2;
-                const z1 = this.startPoint[1] * CELL_SIZE - (GRID_SIZE * CELL_SIZE) / 2 + CELL_SIZE/2;
-                const x2 = this.currentPoint[0] * CELL_SIZE - (GRID_SIZE * CELL_SIZE) / 2 + CELL_SIZE/2;
-                const z2 = this.currentPoint[1] * CELL_SIZE - (GRID_SIZE * CELL_SIZE) / 2 + CELL_SIZE/2;
-                
-                const length = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(z2 - z1, 2)) + WALL_THICKNESS;
-                const angle = Math.atan2(z2 - z1, x2 - x1);
-                const midX = (x1 + x2) / 2;
-                const midZ = (z1 + z2) / 2;
-                
-                this.previewWall.position.set(midX, WALL_HEIGHT / 2, midZ);
-                this.previewWall.rotation.set(0, -angle, 0);
-                this.previewWall.scale.set(length, 1, 1);
-            }
-
-            createPreviewWall() {
-                const geometry = new THREE.BoxGeometry(1, WALL_HEIGHT, WALL_THICKNESS);
-                const material = new THREE.MeshBasicMaterial({
-                    color: COLORS.HIGHLIGHT,
-                    opacity: 0.5,
-                    transparent: true
-                });
-                this.previewWall = new THREE.Mesh(geometry, material);
-                this.scene.add(this.previewWall);
-            }
-
-            removePreviewWall() {
-                if (this.previewWall) {
-                    this.scene.remove(this.previewWall);
-                    this.previewWall.geometry.dispose();
-                    this.previewWall.material.dispose();
-                    this.previewWall = null;
-                }
-            }
-
-            updateScene() {
-                // 移除旧的墙体和房间
-                this.removeAllWallMeshes();
-                this.removeAllRoomMeshes();
-                this.removeAllLabels();
-                
-                // 分析房间
-                this.rooms = analyzeRooms(this.walls);
-                
-                // 创建新的墙体和房间
-                this.createWallMeshes();
-                this.createRoomMeshes();
-                this.createLabels();
-            }
-
-            removeAllWallMeshes() {
-                this.wallMeshes.forEach(mesh => {
-                    this.scene.remove(mesh);
-                    mesh.geometry.dispose();
-                    mesh.material.dispose();
-                });
                 this.wallMeshes = [];
-            }
 
-            removeAllRoomMeshes() {
-                this.roomMeshes.forEach(mesh => {
-                    this.scene.remove(mesh);
-                    mesh.geometry.dispose();
-                    mesh.material.dispose();
+                // 2. 重建墙体 (Liquid Glass Style: Frosted Glass)
+                const wallMat = new THREE.MeshPhysicalMaterial({
+                    color: 0xffffff,
+                    metalness: 0.1,
+                    roughness: 0.2, // 磨砂感
+                    transmission: 0.6, // 半透明
+                    thickness: 1.0,
+                    clearcoat: 1.0,
+                    side: THREE.DoubleSide
                 });
-                this.roomMeshes = [];
-            }
 
-            removeAllLabels() {
-                this.labelDivs.forEach(div => {
-                    if (div.parentNode) div.parentNode.removeChild(div);
-                });
-                this.labelDivs = [];
-            }
-
-            createWallMeshes() {
-                this.walls.forEach(wall => {
-                    const x1 = wall.start[0] * CELL_SIZE - (GRID_SIZE * CELL_SIZE) / 2 + CELL_SIZE/2;
-                    const z1 = wall.start[1] * CELL_SIZE - (GRID_SIZE * CELL_SIZE) / 2 + CELL_SIZE/2;
-                    const x2 = wall.end[0] * CELL_SIZE - (GRID_SIZE * CELL_SIZE) / 2 + CELL_SIZE/2;
-                    const z2 = wall.end[1] * CELL_SIZE - (GRID_SIZE * CELL_SIZE) / 2 + CELL_SIZE/2;
+                this.walls.forEach(w => {
+                    const p1 = this.gridToWorld(w.start[0], w.start[1]);
+                    const p2 = this.gridToWorld(w.end[0], w.end[1]);
                     
-                    const length = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(z2 - z1, 2)) + WALL_THICKNESS;
-                    const angle = Math.atan2(z2 - z1, x2 - x1);
-                    const midX = (x1 + x2) / 2;
-                    const midZ = (z1 + z2) / 2;
+                    const len = Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.z - p1.z, 2)) + WALL_THICKNESS;
+                    const angle = Math.atan2(p2.z - p1.z, p2.x - p1.x);
                     
-                    const geometry = new THREE.BoxGeometry(length, WALL_HEIGHT, WALL_THICKNESS);
-                    const material = new THREE.MeshStandardMaterial({ color: COLORS.WALL });
-                    const mesh = new THREE.Mesh(geometry, material);
-                    
-                    mesh.position.set(midX, WALL_HEIGHT / 2, midZ);
-                    mesh.rotation.set(0, -angle, 0);
+                    const geo = new THREE.BoxGeometry(len, WALL_HEIGHT, WALL_THICKNESS);
+                    const mesh = new THREE.Mesh(geo, wallMat);
+                    mesh.position.set((p1.x + p2.x)/2, WALL_HEIGHT/2, (p1.z + p2.z)/2);
+                    mesh.rotation.y = -angle;
                     mesh.castShadow = true;
                     mesh.receiveShadow = true;
-                    
                     this.scene.add(mesh);
                     this.wallMeshes.push(mesh);
                 });
+
+                // 3. 计算房间
+                this.analyzeRooms();
             }
 
-            createRoomMeshes() {
-                this.rooms.forEach(room => {
-                    room.cells.forEach(([gx, gz], idx) => {
-                        const wx = gx * CELL_SIZE - (GRID_SIZE * CELL_SIZE) / 2 + CELL_SIZE/2;
-                        const wz = gz * CELL_SIZE - (GRID_SIZE * CELL_SIZE) / 2 + CELL_SIZE/2;
-                        
-                        const geometry = new THREE.PlaneGeometry(CELL_SIZE * 0.95, CELL_SIZE * 0.95);
-                        const material = new THREE.MeshStandardMaterial({
-                            color: room.color,
-                            opacity: 0.8,
-                            transparent: true,
-                            side: THREE.DoubleSide
-                        });
-                        const mesh = new THREE.Mesh(geometry, material);
-                        
-                        mesh.position.set(wx, 0.05, wz);
-                        mesh.rotation.x = -Math.PI / 2;
-                        mesh.receiveShadow = true;
-                        
-                        this.scene.add(mesh);
-                        this.roomMeshes.push(mesh);
-                    });
+            analyzeRooms() {
+                // 初始化 Grid
+                // 0: Empty, 1: Wall, 2+: Room ID
+                const grid = new Int32Array(GRID_SIZE * GRID_SIZE).fill(0);
+
+                // 栅格化墙体 (Bresenham line algorithm)
+                this.walls.forEach(w => {
+                    let x0 = w.start[0], y0 = w.start[1];
+                    let x1 = w.end[0], y1 = w.end[1];
+                    let dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
+                    let sx = (x0 < x1) ? 1 : -1, sy = (y0 < y1) ? 1 : -1;
+                    let err = dx - dy;
+
+                    while (true) {
+                        if (x0 >= 0 && x0 < GRID_SIZE && y0 >= 0 && y0 < GRID_SIZE) {
+                            grid[y0 * GRID_SIZE + x0] = 1; // Wall
+                        }
+                        if (x0 === x1 && y0 === y1) break;
+                        let e2 = 2 * err;
+                        if (e2 > -dy) { err -= dy; x0 += sx; }
+                        if (e2 < dx) { err += dx; y0 += sy; }
+                    }
+                });
+
+                // 泛洪算法
+                this.rooms = [];
+                const visited = new Uint8Array(GRID_SIZE * GRID_SIZE).fill(0);
+                
+                for (let z = 0; z < GRID_SIZE; z++) {
+                    for (let x = 0; x < GRID_SIZE; x++) {
+                        const idx = z * GRID_SIZE + x;
+                        if (grid[idx] === 0 && visited[idx] === 0) {
+                            // 新区域
+                            const cells = [];
+                            const queue = [idx];
+                            visited[idx] = 1;
+                            let isClosed = true;
+
+                            // BFS
+                            let ptr = 0;
+                            while(ptr < queue.length) {
+                                const curr = queue[ptr++];
+                                const cx = curr % GRID_SIZE;
+                                const cz = Math.floor(curr / GRID_SIZE);
+                                cells.push({x: cx, z: cz});
+
+                                // 边界检测
+                                if (cx === 0 || cx === GRID_SIZE-1 || cz === 0 || cz === GRID_SIZE-1) {
+                                    isClosed = false;
+                                }
+
+                                // 邻居
+                                const neighbors = [
+                                    {nx: cx+1, nz: cz}, {nx: cx-1, nz: cz},
+                                    {nx: cx, nz: cz+1}, {nx: cx, nz: cz-1}
+                                ];
+
+                                for(let n of neighbors) {
+                                    if(n.nx >=0 && n.nx < GRID_SIZE && n.nz >=0 && n.nz < GRID_SIZE) {
+                                        const nIdx = n.nz * GRID_SIZE + n.nx;
+                                        if (grid[nIdx] !== 1 && visited[nIdx] === 0) {
+                                            visited[nIdx] = 1;
+                                            queue.push(nIdx);
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (isClosed && cells.length > 0) {
+                                this.classifyAndAddRoom(cells);
+                            }
+                        }
+                    }
+                }
+
+                this.visualizeRooms();
+            }
+
+            classifyAndAddRoom(cells) {
+                // 计算物理属性
+                const area = cells.length * (CELL_SIZE * CELL_SIZE); // m²
+                
+                // 计算 AABB
+                let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+                let sumX = 0, sumZ = 0;
+                cells.forEach(c => {
+                    minX = Math.min(minX, c.x);
+                    maxX = Math.max(maxX, c.x);
+                    minZ = Math.min(minZ, c.z);
+                    maxZ = Math.max(maxZ, c.z);
+                    sumX += c.x;
+                    sumZ += c.z;
+                });
+                
+                // 长宽比 (基于包围盒近似)
+                const width = (maxX - minX + 1) * CELL_SIZE;
+                const depth = (maxZ - minZ + 1) * CELL_SIZE;
+                const ratio = Math.max(width, depth) / Math.min(width, depth);
+
+                // --- 规则引擎 v2.0 ---
+                let type = 'STORAGE';
+                let label = '通用存储';
+                let color = PALETTE.STORAGE;
+
+                if (area > 35 && ratio < 2.0) {
+                    type = 'OR';
+                    label = '手术室';
+                    color = PALETTE.OR;
+                } else if (ratio > 3.0) {
+                    type = 'CORRIDOR';
+                    label = '走廊';
+                    color = PALETTE.CORRIDOR;
+                } else if (area < 15) {
+                    type = 'SCRUB';
+                    label = '辅助用房';
+                    color = PALETTE.SCRUB;
+                }
+
+                // 中心点
+                const cx = (sumX / cells.length);
+                const cz = (sumZ / cells.length);
+                const centerWorld = this.gridToWorld(cx, cz);
+
+                this.rooms.push({
+                    id: this.rooms.length,
+                    cells,
+                    area,
+                    type,
+                    label,
+                    color,
+                    center: centerWorld
                 });
             }
 
+            visualizeRooms() {
+                // 清理旧的 Mesh
+                Object.values(this.roomInstancedMeshes).forEach(mesh => {
+                    this.scene.remove(mesh);
+                    mesh.geometry.dispose();
+                    mesh.material.dispose();
+                    mesh.dispose(); 
+                });
+                this.roomInstancedMeshes = {};
+                this.removeAllLabels();
+
+                // 使用 InstancedMesh 渲染海量体素 (Grid Size 150*150 可能有 20000+ 个方块)
+                // 按颜色/类型分组
+                const groups = {};
+                this.rooms.forEach(room => {
+                    if (!groups[room.color]) groups[room.color] = [];
+                    groups[room.color].push(...room.cells);
+                });
+
+                // 基础几何体 (Box Voxel)
+                const geometry = new THREE.BoxGeometry(CELL_SIZE * 0.95, ROOM_HEIGHT, CELL_SIZE * 0.95);
+                
+                Object.keys(groups).forEach(color => {
+                    const cells = groups[color];
+                    const count = cells.length;
+                    
+                    if (count === 0) return;
+
+                    // Liquid Glass 材质
+                    const material = new THREE.MeshPhysicalMaterial({
+                        color: parseInt(color),
+                        metalness: 0,
+                        roughness: 0.1,
+                        transmission: 0.85, // 高透
+                        thickness: 1.5,
+                        clearcoat: 1.0,
+                        transparent: true,
+                        opacity: 1.0
+                    });
+
+                    const mesh = new THREE.InstancedMesh(geometry, material, count);
+                    const matrix = new THREE.Matrix4();
+                    
+                    cells.forEach((cell, i) => {
+                        const wPos = this.gridToWorld(cell.x, cell.z);
+                        // 稍微随机一点高度增加液体感？或者平整
+                        matrix.setPosition(wPos.x, ROOM_HEIGHT/2, wPos.z);
+                        mesh.setMatrixAt(i, matrix);
+                    });
+
+                    mesh.receiveShadow = true;
+                    // InstancedMesh 不需要 castShadow (太重)
+                    
+                    this.scene.add(mesh);
+                    this.roomInstancedMeshes[color] = mesh;
+                });
+
+                this.createLabels();
+            }
+
+            // --- 标签系统 ---
+            
             createLabels() {
+                this.labels = [];
                 this.rooms.forEach(room => {
                     const div = document.createElement('div');
                     div.className = 'html-label';
                     div.innerHTML = `
                         <div class="label-title">${room.label}</div>
-                        <div class="label-area">${room.area * 2}m²</div>
+                        <div class="label-area">${room.area.toFixed(1)} m²</div>
                     `;
                     document.body.appendChild(div);
-                    this.labelDivs.push(div);
+                    this.labels.push({ div, pos: room.center });
                 });
             }
 
+            removeAllLabels() {
+                if (this.labels) {
+                    this.labels.forEach(l => l.div.remove());
+                }
+                this.labels = [];
+            }
+
             updateLabels() {
-                this.rooms.forEach((room, index) => {
-                    const div = this.labelDivs[index];
-                    if (!div) return;
-                    
-                    const vector = new THREE.Vector3(
-                        room.center[0],
-                        WALL_HEIGHT + 0.5,
-                        room.center[2]
-                    );
-                    
-                    vector.project(this.camera);
-                    
-                    const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
-                    const y = (-(vector.y * 0.5) + 0.5) * window.innerHeight;
-                    
-                    div.style.transform = `translate(-50%, -50%) translate(${x}px, ${y}px)`;
-                    
-                    if (Math.abs(vector.z) > 1) {
-                         div.style.display = 'none';
+                if (!this.labels) return;
+                
+                this.labels.forEach(item => {
+                    // 3D -> 2D
+                    const v = new THREE.Vector3(item.pos.x, WALL_HEIGHT + 1, item.pos.z);
+                    v.project(this.camera);
+
+                    const x = (v.x * .5 + .5) * this.container.clientWidth;
+                    const y = (-(v.y * .5) + .5) * this.container.clientHeight;
+
+                    if (Math.abs(v.z) < 1) {
+                         item.div.style.display = 'block';
+                         item.div.style.transform = `translate(-50%, -50%) translate(${x}px, ${y}px)`;
                     } else {
-                         div.style.display = 'block';
+                         item.div.style.display = 'none';
                     }
                 });
             }
 
-            animate() {
-                requestAnimationFrame(() => this.animate());
+            // --- 辅助功能 ---
+            
+            findRoomAt(gx, gz) {
+                // 简单遍历 (因为房间不多)
+                for (let r of this.rooms) {
+                    // 检查 cells
+                    // 优化：可以用 Set 或 Map 加速，但在演示规模下遍历数组足够快
+                    if (r.cells.some(c => c.x === gx && c.z === gz)) {
+                        return r;
+                    }
+                }
+                return null;
+            }
+
+            highlightRoom(room) {
+                // 高亮逻辑: 
+                // 由于使用了 InstancedMesh，这里简单处理：显示 Label 详细信息，或者改变 Cursor 颜色
+                // 真正的 InstancedMesh 局部变色比较复杂 (setColorAt + needsUpdate)，演示中我们通过 UI 反馈
+                if (room) {
+                    // 找到对应的 Label 设为高亮样式
+                    this.labels.forEach(l => {
+                        if (l.pos === room.center) {
+                            l.div.style.background = 'rgba(56, 178, 172, 0.8)';
+                            l.div.style.zIndex = 20;
+                        } else {
+                            l.div.style.background = 'rgba(255, 255, 255, 0.1)';
+                            l.div.style.zIndex = 10;
+                        }
+                    });
+                } else {
+                    // Reset
+                    this.labels.forEach(l => l.div.style.background = 'rgba(255, 255, 255, 0.1)');
+                }
+            }
+
+            initPreset() {
+                // 预设墙体 (坐标需适配 150x150 网格，30m范围)
+                // 1.5m 单元格时 [2,2] -> 3m. 
+                // 0.2m 单元格时，3m -> 15 units.
+                // 转换旧数据比例： 150(grid) / 20(old_grid) = 7.5 倍
+                const scale = 7.5;
+                const offset = 0; 
                 
+                const walls = [
+                     { start: [2, 2], end: [2, 12] },
+                     { start: [2, 12], end: [15, 12] },
+                     { start: [15, 12], end: [15, 2] },
+                     { start: [15, 2], end: [2, 2] },
+                     { start: [6, 2], end: [6, 12] }
+                ];
+                
+                walls.forEach(w => {
+                    this.addWall(
+                        {gx: Math.round(w.start[0] * scale), gz: Math.round(w.start[1] * scale)},
+                        {gx: Math.round(w.end[0] * scale), gz: Math.round(w.end[1] * scale)}
+                    );
+                });
+            }
+
+            animate() {
+                requestAnimationFrame(this.animate);
                 this.controls.update();
                 this.updateLabels();
                 this.renderer.render(this.scene, this.camera);
             }
         }
 
-        // 初始化应用
-        document.addEventListener('DOMContentLoaded', () => {
-            const container = document.getElementById('scene-container');
-            const bimScene = new BIMScene(container);
-        });
+        // 启动
+        window.onload = () => {
+            new BIMManager();
+        };
+
     </script>
 </body>
 </html>
